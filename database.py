@@ -1,34 +1,86 @@
 import sqlite3
+from datetime import datetime
 
-# Create (or open) the database
-conn = sqlite3.connect("market.db")
+DATABASE_PATH = "data/markettracker.db"
 
-cursor = conn.cursor()
 
-# Assets table
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS assets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol TEXT NOT NULL,
-    asset_type TEXT NOT NULL,
-    interval_minutes INTEGER,
-    alert_high REAL,
-    alert_low REAL
-)
-""")
+# -------------------------------------------
+# Database Connection
+# -------------------------------------------
+def get_connection():
+    return sqlite3.connect(DATABASE_PATH)
 
-# Snapshots table
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    asset_id INTEGER,
-    timestamp TEXT,
-    price REAL,
-    FOREIGN KEY(asset_id) REFERENCES assets(id)
-)
-""")
 
-conn.commit()
-conn.close()
+# -------------------------------------------
+# Create tables if they don't exist
+# -------------------------------------------
+def create_tables():
+    conn = get_connection()
+    cursor = conn.cursor()
 
-print("Database created successfully!")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol TEXT NOT NULL,
+        asset_type TEXT NOT NULL,
+        interval_minutes INTEGER,
+        alert_high REAL,
+        alert_low REAL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER NOT NULL,
+        timestamp TEXT NOT NULL,
+        price REAL NOT NULL,
+        FOREIGN KEY(asset_id) REFERENCES assets(id)
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+# -------------------------------------------
+# Save a price snapshot
+# -------------------------------------------
+def save_snapshot(asset_id, price):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    timestamp = datetime.now().isoformat(timespec="seconds")
+
+    cursor.execute("""
+        INSERT INTO snapshots (asset_id, timestamp, price)
+        VALUES (?, ?, ?)
+    """, (asset_id, timestamp, price))
+
+    conn.commit()
+    conn.close()
+
+    print(f"Snapshot saved at {timestamp}")
+
+
+def get_asset_id(symbol):
+    conn: sqlite3.Connection = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id FROM assets WHERE symbol = ?",
+        (symbol,)
+    )
+
+    row = cursor.fetchone()
+
+    conn.close()
+
+    if row:
+        return row[0]
+
+    return None
+
+if __name__ == "__main__":
+    create_tables()
+    print("Database tables ready!")

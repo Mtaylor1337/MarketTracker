@@ -2,9 +2,18 @@ import requests
 from config import COINGECKO_URL, DEFAULT_CURRENCY
 
 
-def get_bitcoin_price():
+CRYPTO_MAP = {
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "SOL": "solana",
+    "XRP": "ripple",
+    "DOGE": "dogecoin",
+}
+
+
+def get_crypto_prices():
     params = {
-        "ids": "bitcoin",
+        "ids": ",".join(CRYPTO_MAP.values()),
         "vs_currencies": DEFAULT_CURRENCY
     }
 
@@ -13,4 +22,9 @@ def get_bitcoin_price():
 
     data = response.json()
 
-    return data["bitcoin"][DEFAULT_CURRENCY]
+    prices = {}
+
+    for symbol, coingecko_id in CRYPTO_MAP.items():
+        prices[symbol] = data[coingecko_id][DEFAULT_CURRENCY]
+
+    return prices

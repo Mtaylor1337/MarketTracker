@@ -1,4 +1,4 @@
-from collector import get_bitcoin_price
+from collector import get_crypto_prices
 from database import (
     create_tables,
     save_snapshot,
@@ -7,24 +7,20 @@ from database import (
 
 
 def main():
-
-    # Make sure database exists
     create_tables()
 
-    # Get live Bitcoin price
-    btc_price = get_bitcoin_price()
+    prices = get_crypto_prices()
 
-    print(f"BTC Price: ${btc_price:,.2f}")
+    for symbol, price in prices.items():
+        print(f"{symbol} Price: ${price:,.2f}")
 
-    # Find Bitcoin in the assets table
-    asset_id = get_asset_id("BTC")
+        asset_id = get_asset_id(symbol)
 
-    if asset_id is None:
-        print("Bitcoin has not been added to the Assets table.")
-        return
+        if asset_id is None:
+            print(f"{symbol} has not been added to the assets table.")
+            continue
 
-    # Save price history
-    save_snapshot(asset_id, btc_price)
+        save_snapshot(asset_id, price)
 
 
 if __name__ == "__main__":

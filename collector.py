@@ -1,5 +1,10 @@
 import requests
 from config import COINGECKO_URL, DEFAULT_CURRENCY
+from database import (
+    create_tables,
+    save_snapshot,
+    get_asset_id
+)
 
 
 CRYPTO_MAP = {
@@ -28,3 +33,20 @@ def get_crypto_prices():
         prices[symbol] = data[coingecko_id][DEFAULT_CURRENCY]
 
     return prices
+
+
+def run_collection():
+    create_tables()
+
+    prices = get_crypto_prices()
+
+    for symbol, price in prices.items():
+        print(f"{symbol} Price: ${price:,.2f}")
+
+        asset_id = get_asset_id(symbol)
+
+        if asset_id is None:
+            print(f"{symbol} has not been added to the assets table.")
+            continue
+
+        save_snapshot(asset_id, price)

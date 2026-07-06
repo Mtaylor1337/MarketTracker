@@ -1,10 +1,9 @@
-from datetime import datetime
 import tkinter as tk
 from tkinter import ttk
-from urllib import response
-from database import get_connection
 from tkinter import messagebox
-import requests
+
+from database import get_connection
+from market_service import fetch_and_save_prices
 
 REFRESH_COOLDOWN_SECONDS = 10
 
@@ -48,52 +47,6 @@ def load_snapshots():
             values=(snapshot_id, symbol, timestamp, f"${price:,.2f}")
         )
 
-def fetch_and_save_prices():
-    coin_ids = {
-        "BTC": "bitcoin",
-        "ETH": "ethereum",
-        "SOL": "solana",
-        "XRP": "ripple",
-        "DOGE": "dogecoin",
-    }
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT id, symbol FROM assets")
-    assets = cursor.fetchall()
-
-    valid_assets = []
-    for asset_id, symbol in assets:
-        coin_id = coin_ids.get(symbol.upper())
-
-        if coin_id is not None:
-            valid_assets.append((asset_id, symbol, coin_id))
-
-    ids = ",".join([coin_id for asset_id, symbol, coin_id in valid_assets])
-
-    url = "https://api.coingecko.com/api/v3/simple/price"
-    params = {
-        "ids": ids,
-        "vs_currencies": "usd"
-    }
-
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-
-    data = response.json()
-    timestamp = datetime.now().isoformat(timespec="seconds")
-
-    for asset_id, symbol, coin_id in valid_assets:
-        price = data[coin_id]["usd"]
-
-        cursor.execute("""
-            INSERT INTO snapshots (asset_id, timestamp, price)
-            VALUES (?, ?, ?)
-        """, (asset_id, timestamp, price))
-
-    conn.commit()
-    conn.close()
 
 def refresh_prices():
     refresh_button.config(state="disabled")
@@ -104,9 +57,13 @@ def refresh_prices():
         fetch_and_save_prices()
         load_snapshots()
         status_label.config(
-            text=f"Prices refreshed. Waiting {REFRESH_COOLDOWN_SECONDS} seconds...")
+            text=f"Prices refreshed. Waiting {REFRESH_COOLDOWN_SECONDS} seconds..."
+        )
     except Exception as e:
-        messagebox.showerror("Refresh Error", f"Failed to refresh prices:\n{e}")
+        messagebox.showerror(
+            "Refresh Error",
+            f"Failed to refresh prices:\n{e}"
+        )
         status_label.config(text="Error refreshing")
     finally:
         countdown_refresh(REFRESH_COOLDOWN_SECONDS)

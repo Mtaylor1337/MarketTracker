@@ -1,8 +1,8 @@
-from collector import run_collection
+import ui
 
 
 def main():
-    run_collection()
+    pass
 
 
 if __name__ == "__main__":

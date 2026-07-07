@@ -5,7 +5,7 @@ from tkinter import messagebox
 from database import get_connection
 from market_service import fetch_and_save_prices
 
-REFRESH_COOLDOWN_SECONDS = 10
+REFRESH_COOLDOWN_SECONDS = 30
 
 def enable_refresh():
     refresh_button.config(state="normal")
@@ -101,3 +101,4 @@ snapshot_table.pack(fill="both", expand=True, padx=20, pady=15)
 load_snapshots()
 
 root.mainloop()
+

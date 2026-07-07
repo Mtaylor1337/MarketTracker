@@ -46,11 +46,12 @@ def create_tables():
 # -------------------------------------------
 # Save a price snapshot
 # -------------------------------------------
-def save_snapshot(asset_id, price):
+def save_snapshot(asset_id, price, timestamp=None):
     conn = get_connection()
     cursor = conn.cursor()
 
-    timestamp = datetime.now().isoformat(timespec="seconds")
+    if timestamp is None:
+        timestamp = datetime.now().isoformat(timespec="seconds")
 
     cursor.execute("""
         INSERT INTO snapshots (asset_id, timestamp, price)
@@ -59,8 +60,6 @@ def save_snapshot(asset_id, price):
 
     conn.commit()
     conn.close()
-
-    print(f"Snapshot saved at {timestamp}")
 
 
 def get_asset_id(symbol):

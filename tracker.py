@@ -1,5 +1,7 @@
 import time
-from collector import run_collection
+
+from database import create_tables
+from market_service import fetch_and_save_prices
 
 
 INTERVAL_SECONDS = 10
@@ -10,9 +12,12 @@ def main():
     print(f"Taking snapshots every {INTERVAL_SECONDS} seconds.")
     print("Press CTRL + C to stop.\n")
 
+    create_tables()
+
     try:
         while True:
-            run_collection()
+            fetch_and_save_prices()
+            print("Market snapshot saved.")
             print(f"Waiting {INTERVAL_SECONDS} seconds...\n")
             time.sleep(INTERVAL_SECONDS)
 

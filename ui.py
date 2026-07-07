@@ -6,6 +6,13 @@ from database import get_connection
 from market_service import fetch_and_save_prices
 
 REFRESH_COOLDOWN_SECONDS = 30
+REFRESH_INTERVAL_OPTIONS = {
+    "30 sec": 30,
+    "1 min": 60,
+    "5 min": 300,
+    "30 min": 1800,
+    "1 hr": 3600,
+}
 
 def enable_refresh():
     refresh_button.config(state="normal")
@@ -68,6 +75,14 @@ def refresh_prices():
     finally:
         countdown_refresh(REFRESH_COOLDOWN_SECONDS)
 
+def auto_refresh():
+    selected_interval = interval_choice.get()
+    seconds = REFRESH_INTERVAL_OPTIONS[selected_interval]
+
+    refresh_prices()
+
+    root.after(seconds * 1000, auto_refresh)
+
 root = tk.Tk()
 root.title("MarketTracker")
 root.geometry("900x550")
@@ -78,12 +93,26 @@ title.pack(pady=15)
 toolbar = ttk.Frame(root)
 toolbar.pack(fill="x", padx=20, pady=5)
 
+interval_label = ttk.Label(toolbar, text="Check market every:")
+interval_label.pack(side="left")
+
+interval_choice = tk.StringVar(value="30 sec")
+
+interval_dropdown = ttk.Combobox(
+    toolbar,
+    textvariable=interval_choice,
+    values=list(REFRESH_INTERVAL_OPTIONS.keys()),
+    state="readonly",
+    width=10
+)
+interval_dropdown.pack(side="left", padx=8)
+
 refresh_button = ttk.Button(
     toolbar,
-    text="Refresh Prices",
+    text="Refresh Now",
     command=refresh_prices
 )
-refresh_button.pack(side="left")
+refresh_button.pack(side="left", padx=10)
 
 status_label = ttk.Label(toolbar, text="Ready")
 status_label.pack(side="left", padx=15)
@@ -99,6 +128,7 @@ for column in columns:
 snapshot_table.pack(fill="both", expand=True, padx=20, pady=15)
 
 load_snapshots()
+root.after(1000, auto_refresh)
 
 root.mainloop()
 

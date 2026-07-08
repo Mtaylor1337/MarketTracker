@@ -16,7 +16,7 @@ REFRESH_INTERVAL_OPTIONS = {
 
 def enable_refresh():
     refresh_button.config(state="normal")
-    status_label.config(text="Ready")
+    manual_status_label.config(text="Manual Refresh: Ready")
 
 def countdown_refresh(seconds_remaining):
     if seconds_remaining > 0:
@@ -57,31 +57,34 @@ def load_snapshots():
 
 def refresh_prices():
     refresh_button.config(state="disabled")
-    status_label.config(text="Refreshing...")
+    manual_status_label.config(text="Manual refresh running...")
     root.update_idletasks()
 
     try:
         fetch_and_save_prices()
         load_snapshots()
-        status_label.config(
-            text=f"Prices refreshed. Waiting {REFRESH_COOLDOWN_SECONDS} seconds..."
+        manual_status_label.config(
+            text=f"Manual refresh cooling down: {REFRESH_COOLDOWN_SECONDS} sec"
         )
     except Exception as e:
         messagebox.showerror(
             "Refresh Error",
             f"Failed to refresh prices:\n{e}"
         )
-        status_label.config(text="Error refreshing")
+        manual_status_label.config(text="Manual Refresh: Error")
     finally:
         countdown_refresh(REFRESH_COOLDOWN_SECONDS)
 
-def auto_refresh():
-    selected_interval = interval_choice.get()
-    seconds = REFRESH_INTERVAL_OPTIONS[selected_interval]
+def start_tracking():
+    start_tracking_button.config(state="disabled")
+    stop_tracking_button.config(state="normal")
+    tracking_status_label.config(text="Tracking: Running")
 
-    refresh_prices()
 
-    root.after(seconds * 1000, auto_refresh)
+def stop_tracking():
+    start_tracking_button.config(state="normal")
+    stop_tracking_button.config(state="disabled")
+    tracking_status_label.config(text="Tracking: Idle")
 
 root = tk.Tk()
 root.title("MarketTracker")
@@ -107,6 +110,21 @@ interval_dropdown = ttk.Combobox(
 )
 interval_dropdown.pack(side="left", padx=8)
 
+start_tracking_button = ttk.Button(
+    toolbar,
+    text="Start Tracking",
+    command=start_tracking
+)
+start_tracking_button.pack(side="left", padx=10)
+
+stop_tracking_button = ttk.Button(
+    toolbar,
+    text="Stop Tracking",
+    command=stop_tracking,
+    state="disabled"
+)
+stop_tracking_button.pack(side="left", padx=5)
+
 refresh_button = ttk.Button(
     toolbar,
     text="Refresh Now",
@@ -114,8 +132,11 @@ refresh_button = ttk.Button(
 )
 refresh_button.pack(side="left", padx=10)
 
-status_label = ttk.Label(toolbar, text="Ready")
-status_label.pack(side="left", padx=15)
+tracking_status_label = ttk.Label(toolbar, text="Tracking: Idle")
+tracking_status_label.pack(side="left", padx=15)
+
+manual_status_label = ttk.Label(toolbar, text="Manual Refresh: Ready")
+manual_status_label.pack(side="left", padx=15)
 
 columns = ("ID", "Symbol", "Timestamp", "Price")
 
@@ -128,7 +149,5 @@ for column in columns:
 snapshot_table.pack(fill="both", expand=True, padx=20, pady=15)
 
 load_snapshots()
-root.after(1000, auto_refresh)
 
 root.mainloop()
-

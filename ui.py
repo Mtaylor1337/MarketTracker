@@ -15,7 +15,10 @@ REFRESH_INTERVAL_OPTIONS = {
     "30 min": 1800,
     "1 hr": 3600,
 }
-
+tracking_active = False
+tracking_after_id = None
+tracking_total_seconds = 0
+tracking_seconds_remaining = 0
 
 def enable_refresh():
     refresh_button.config(state="normal")
@@ -100,19 +103,134 @@ def refresh_prices():
     finally:
         countdown_refresh(REFRESH_COOLDOWN_SECONDS)
 
+def format_tracking_time(total_seconds):
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
 
-def start_tracking():
-    start_tracking_button.config(state="disabled")
-    stop_tracking_button.config(state="normal")
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    return f"{minutes:02d}:{seconds:02d}"
+
+
+def update_tracking_countdown():
+    global tracking_active
+    global tracking_after_id
+    global tracking_seconds_remaining
+
+    if not tracking_active:
+        return
+
+    elapsed_seconds = (
+        tracking_total_seconds - tracking_seconds_remaining
+    )
+
+    progress_percent = (
+        elapsed_seconds / tracking_total_seconds
+    ) * 100
+
+    tracking_progress.config(value=progress_percent)
+
+    formatted_time = format_tracking_time(
+        tracking_seconds_remaining
+    )
 
     tracking_status_label.config(
-        text="Tracking Progress: Running"
+        text=(
+            "Tracking Progress: Running — "
+            f"next market scan in {formatted_time}"
+        )
     )
+
+    if tracking_seconds_remaining > 0:
+        tracking_seconds_remaining -= 1
+
+        tracking_after_id = root.after(
+            1000,
+            update_tracking_countdown
+        )
+
+        return
+
+    tracking_status_label.config(
+        text="Tracking Progress: Fetching market prices..."
+    )
+    tracking_progress.config(value=100)
+    root.update_idletasks()
+
+    try:
+        fetch_and_save_prices()
+        load_snapshots()
+
+    except Exception as e:
+        messagebox.showerror(
+            "Automatic Tracking Error",
+            f"Failed to fetch market prices:\n{e}"
+        )
+
+        stop_tracking()
+
+        tracking_status_label.config(
+            text="Tracking Progress: Stopped after error"
+        )
+
+        return
+
+    if not tracking_active:
+        return
+
+    tracking_seconds_remaining = tracking_total_seconds
+    tracking_progress.config(value=0)
+
+    tracking_status_label.config(
+        text="Tracking Progress: Market snapshot saved"
+    )
+
+    tracking_after_id = root.after(
+        1000,
+        update_tracking_countdown
+    )
+
+def start_tracking():
+    global tracking_active
+    global tracking_total_seconds
+    global tracking_seconds_remaining
+
+    selected_interval = interval_choice.get()
+
+    tracking_total_seconds = (
+        REFRESH_INTERVAL_OPTIONS[selected_interval]
+    )
+
+    tracking_seconds_remaining = tracking_total_seconds
+    tracking_active = True
+
+    start_tracking_button.config(state="disabled")
+    stop_tracking_button.config(state="normal")
+    interval_dropdown.config(state="disabled")
+
+    tracking_progress.config(value=0)
+
+    update_tracking_countdown()
 
 
 def stop_tracking():
+    global tracking_active
+    global tracking_after_id
+    global tracking_seconds_remaining
+
+    tracking_active = False
+    tracking_seconds_remaining = 0
+
+    if tracking_after_id is not None:
+        root.after_cancel(tracking_after_id)
+        tracking_after_id = None
+
     start_tracking_button.config(state="normal")
     stop_tracking_button.config(state="disabled")
+    interval_dropdown.config(state="readonly")
+
+    tracking_progress.config(value=0)
 
     tracking_status_label.config(
         text="Tracking Progress: Currently Idle"
@@ -140,7 +258,7 @@ title.pack()
 
 version_label = ttk.Label(
     header_frame,
-    text="Ver 0.5  |  7/9/2026",
+    text="Ver 0.6  |  7/10/2026",
     font=("Segoe UI", 10)
 )
 version_label.pack(pady=(2, 5))

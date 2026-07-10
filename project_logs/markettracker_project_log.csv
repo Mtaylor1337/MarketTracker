@@ -1,0 +1,5 @@
+﻿change_id,date,project,version,sprint,change_type,files_changed,changes_made,project_intent,bugs_fixed,features_added,testing_performed,git_commit_hash,screenshot_reference,video_diary_reference,follow_up_items,notes
+MT-0001,2026-07-10,MarketTracker,,,Feature,"EADME.md [Modified]
+ui.py [Modified]
+project_log_manager.py [Untracked]
+project_logs/markettracker_project_log.csv [Untracked]",test run of prog,testing the new log mngr,,,,,,,,

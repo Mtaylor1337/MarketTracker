@@ -21,3 +21,28 @@ ROADMAP.md [Project File]
 tracker.py [Project File]
 ui.py [Project File]
 view_snapshots.py [Project File]","Connected the tracking countdown to the market collection system. Automatic Tracking now performs unattended market scans, saves snapshots, refreshes the UI, and repeats at the selected interval until stopped.",Integrating two independently tested systems was much easier than trying to build and debug them simultaneously.,,,,,,,,
+MT-019,2026-07-13,MarketTracker,ver 0.7 | 7/13/2026,Sprint 4 - Automatic Tracking Dashboard,Feature,"roject_log_manager.py [Modified]
+ui.py [Modified]","Completed the automatic tracking dashboard.
+
+• Connected automatic tracking countdown to the market collection system.
+• Progress bar now advances in real time.
+• Added Last Scan timestamp.
+• Added Next Scan timestamp.
+• Countdown updates every second.
+• Tracking status now correctly switches between Idle and Running.
+• Version information moved into config_version.py for centralized build management.
+• Project Log Manager now allows manual editing of Change IDs.","Finish the automatic tracking user experience before beginning data visualization features. Provide clear visual feedback so the user always knows when MarketTracker last scanned the market, when the next scan will occur, and the current progress toward the next collection interval.","• Progress bar was not synchronized with tracking cycle.
+• Last Scan field remained blank.
+• Next Scan field remained blank.
+• Change ID field in Project Log Manager was locked as read-only.","• Live tracking countdown.
+• Live progress bar.
+• Last Scan timestamp.
+• Next Scan timestamp.
+• Centralized version configuration.
+• Editable Change ID field in Project Log Manager.","• Verified 30-second automatic tracking cycle.
+• Confirmed progress bar updates every second.
+• Confirmed automatic market fetch occurs at end of countdown.
+• Verified snapshot table refreshes automatically.
+• Verified Last Scan and Next Scan timestamps update correctly.
+• Verified manual Refresh Now continues to function independently.
+• Verified Project Log Manager accepts manual Change ID edits.",,,,,

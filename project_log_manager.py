@@ -950,7 +950,7 @@ change_id_entry = create_labeled_entry(
     row=0,
 )
 change_id_entry.configure(
-    state="readonly"
+    state="editable"
 )
 
 create_labeled_entry(

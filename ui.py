@@ -1,10 +1,11 @@
 import tkinter as tk
+from datetime import datetime, timedelta
 from tkinter import messagebox
 from tkinter import ttk
 
+from config_version import APP_VERSION, BUILD_DATE
 from database import get_connection
 from market_service import fetch_and_save_prices
-
 
 REFRESH_COOLDOWN_SECONDS = 30
 
@@ -136,10 +137,11 @@ def update_tracking_countdown():
     )
 
     tracking_status_label.config(
-        text=(
-            "Tracking Progress: Running — "
-            f"next market scan in {formatted_time}"
-        )
+        text="Status: Running"
+    )
+
+    countdown_label.config(
+        text=f"{formatted_time} Remaining"
     )
 
     if tracking_seconds_remaining > 0:
@@ -153,14 +155,34 @@ def update_tracking_countdown():
         return
 
     tracking_status_label.config(
-        text="Tracking Progress: Fetching market prices..."
+        text="Status: Fetching Market Data"
     )
+
+    countdown_label.config(
+        text="Collecting latest prices..."
+    )
+
     tracking_progress.config(value=100)
     root.update_idletasks()
 
     try:
         fetch_and_save_prices()
         load_snapshots()
+
+        scan_time = datetime.now()
+
+        last_scan_label.config(
+            text=f"Last Scan: {scan_time.strftime('%I:%M:%S %p')}"
+        )
+
+        next_scan_time = (
+            scan_time
+            + timedelta(seconds=tracking_total_seconds)
+        )
+
+        next_scan_label.config(
+            text=f"Next Scan: {next_scan_time.strftime('%I:%M:%S %p')}"
+        )
 
     except Exception as e:
         messagebox.showerror(
@@ -171,7 +193,7 @@ def update_tracking_countdown():
         stop_tracking()
 
         tracking_status_label.config(
-            text="Tracking Progress: Stopped after error"
+            text="Status: Error"
         )
 
         return
@@ -183,7 +205,7 @@ def update_tracking_countdown():
     tracking_progress.config(value=0)
 
     tracking_status_label.config(
-        text="Tracking Progress: Market snapshot saved"
+        text="Status: Running"
     )
 
     tracking_after_id = root.after(
@@ -211,8 +233,27 @@ def start_tracking():
 
     tracking_progress.config(value=0)
 
-    update_tracking_countdown()
+    tracking_status_label.config(
+        text="Status: Running"
+    )
 
+    countdown_label.config(
+        text=(
+            f"{format_tracking_time(tracking_seconds_remaining)} "
+            "Remaining"
+        )
+    )
+
+    next_scan_time = (
+        datetime.now()
+        + timedelta(seconds=tracking_total_seconds)
+    )
+
+    next_scan_label.config(
+        text=f"Next Scan: {next_scan_time.strftime('%I:%M:%S %p')}"
+    )
+
+    update_tracking_countdown()
 
 def stop_tracking():
     global tracking_active
@@ -233,14 +274,20 @@ def stop_tracking():
     tracking_progress.config(value=0)
 
     tracking_status_label.config(
-        text="Tracking Progress: Currently Idle"
+        text="Status: Idle"
     )
 
+    next_scan_label.config(
+        text="Next Scan: --:--:--"
+    )
+
+    countdown_label.config(
+        text="Ready"
+    )
 
 root = tk.Tk()
 root.title("MarketTracker")
 root.geometry("950x720")
-
 
 # --------------------------------------------------
 # Application title and version
@@ -258,7 +305,7 @@ title.pack()
 
 version_label = ttk.Label(
     header_frame,
-    text="Ver 0.6  |  7/10/2026",
+    text=f"Ver {APP_VERSION}   |   {BUILD_DATE}",
     font=("Segoe UI", 10)
 )
 version_label.pack(pady=(2, 5))
@@ -333,9 +380,22 @@ tracking_progress_frame.pack(
 
 tracking_status_label = ttk.Label(
     tracking_progress_frame,
-    text="Tracking Progress: Currently Idle"
+    text="Status: Idle",
+    font=("Segoe UI", 10, "bold")
 )
-tracking_status_label.pack(pady=(10, 5))
+tracking_status_label.pack(anchor="w", padx=20, pady=(10, 2))
+
+last_scan_label = ttk.Label(
+    tracking_progress_frame,
+    text="Last Scan: --:--:--"
+)
+last_scan_label.pack(anchor="w", padx=20)
+
+next_scan_label = ttk.Label(
+    tracking_progress_frame,
+    text="Next Scan: --:--:--"
+)
+next_scan_label.pack(anchor="w", padx=20)
 
 tracking_progress = ttk.Progressbar(
     tracking_progress_frame,
@@ -348,8 +408,14 @@ tracking_progress = ttk.Progressbar(
 tracking_progress.pack(
     fill="x",
     padx=20,
-    pady=(5, 15)
+    pady=(8, 5)
 )
+
+countdown_label = ttk.Label(
+    tracking_progress_frame,
+    text="--:-- Remaining"
+)
+countdown_label.pack(pady=(0, 12))
 
 
 # --------------------------------------------------

@@ -8,7 +8,7 @@ from market_service import (
     fetch_and_save_prices,
     get_latest_market_snapshots,
 )
-
+from reports import ReportsPage
 
 REFRESH_COOLDOWN_SECONDS = 30
 
@@ -37,13 +37,14 @@ COLOR_WINDOW = "#F3F6FA"
 COLOR_SIDEBAR = "#16202A"
 COLOR_SIDEBAR_BUTTON = "#223140"
 COLOR_SIDEBAR_ACTIVE = "#2E86DE"
+COLOR_SIDEBAR_INACTIVE_TEXT = "#859DB6"
 COLOR_CARD = "#FFFFFF"
-COLOR_BORDER = "#D9E1E8"
+COLOR_BORDER = "#B125A6"
 COLOR_TEXT = "#1F2933"
 COLOR_MUTED = "#66788A"
-COLOR_SUCCESS = "#1E9E67"
-COLOR_DANGER = "#C94C4C"
-COLOR_TABLE_HEADER = "#E8EEF4"
+COLOR_SUCCESS = "#1EB573"
+COLOR_DANGER = "#C62626"
+COLOR_TABLE_HEADER = "#2F7AC4"
 
 
 # --------------------------------------------------
@@ -509,6 +510,41 @@ def stop_tracking():
 # Main window
 # --------------------------------------------------
 
+def set_active_navigation(active_button):
+    navigation_buttons = (
+        dashboard_nav_button,
+        reports_nav_button,
+    )
+
+    for button in navigation_buttons:
+        button.config(
+            background=COLOR_SIDEBAR_BUTTON,
+            foreground=COLOR_SIDEBAR_INACTIVE_TEXT,
+            activebackground=COLOR_SIDEBAR_BUTTON,
+            activeforeground="white",
+            font=("Segoe UI", 10),
+        )
+
+    active_button.config(
+        background=COLOR_SIDEBAR_ACTIVE,
+        foreground="white",
+        activebackground=COLOR_SIDEBAR_ACTIVE,
+        activeforeground="white",
+        font=("Segoe UI", 10, "bold"),
+    )
+
+def show_dashboard_page():
+    reports_page.grid_remove()
+    main_frame.grid()
+    set_active_navigation(dashboard_nav_button)
+
+
+def show_reports_page():
+    main_frame.grid_remove()
+    reports_page.load_assets()
+    reports_page.grid()
+    set_active_navigation(reports_nav_button)
+
 root = tk.Tk()
 root.title(f"MarketTracker {APP_VERSION}")
 root.geometry("1280x780")
@@ -648,17 +684,25 @@ brand_label.grid(
 
 dashboard_nav_button = tk.Button(
     sidebar,
-    text="  Dashboard",
+    text=" Dashboard",
+    command=show_dashboard_page,
     anchor="w",
     background=COLOR_SIDEBAR_ACTIVE,
-    foreground="#FFFFFF",
+    foreground="white",
     activebackground=COLOR_SIDEBAR_ACTIVE,
-    activeforeground="#FFFFFF",
+    activeforeground="white",
     relief="flat",
     borderwidth=0,
     font=("Segoe UI", 10, "bold"),
     padx=18,
     pady=12,
+)
+dashboard_nav_button.grid(
+    row=1,
+    column=0,
+    sticky="ew",
+    padx=12,
+    pady=3,
 )
 
 dashboard_nav_button.grid(
@@ -694,19 +738,25 @@ snapshots_nav_button.grid(
 
 reports_nav_button = tk.Button(
     sidebar,
-    text="  Reports  (Planned)",
+    text=" Reports",
+    command=show_reports_page,
     anchor="w",
-    background=COLOR_SIDEBAR,
-    foreground="#758493",
-    activebackground=COLOR_SIDEBAR,
-    activeforeground="#758493",
+    background=COLOR_SIDEBAR_BUTTON,
+    foreground=COLOR_SIDEBAR_INACTIVE_TEXT,
+    activebackground=COLOR_SIDEBAR_BUTTON,
+    activeforeground=COLOR_TEXT,
     relief="flat",
     borderwidth=0,
     font=("Segoe UI", 10),
     padx=18,
     pady=12,
-    state="disabled",
-    disabledforeground="#758493",
+)
+reports_nav_button.grid(
+    row=3,
+    column=0,
+    sticky="ew",
+    padx=12,
+    pady=3,
 )
 
 reports_nav_button.grid(
@@ -799,6 +849,26 @@ main_frame.grid(
 main_frame.columnconfigure(0, weight=1)
 main_frame.rowconfigure(3, weight=1)
 
+reports_page = ReportsPage(
+    root,
+    colors={
+        "window": COLOR_WINDOW,
+        "card": COLOR_CARD,
+        "border": COLOR_BORDER,
+        "text": COLOR_TEXT,
+        "muted": COLOR_MUTED,
+        "primary": COLOR_SIDEBAR_ACTIVE,
+        "success": COLOR_SUCCESS,
+        "danger": COLOR_DANGER,
+        "table_header": COLOR_TABLE_HEADER,
+    },
+)
+reports_page.grid(
+    row=0,
+    column=1,
+    sticky="nsew",
+)
+reports_page.grid_remove()
 
 # --------------------------------------------------
 # Dashboard header

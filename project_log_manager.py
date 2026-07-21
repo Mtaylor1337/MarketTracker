@@ -237,10 +237,127 @@ def clear_form():
 
     files_changed_text.focus_set()
 
+def create_preview(value, max_length=70):
+    """
+    Convert multiline text into a short, single-line table preview.
+    """
+    cleaned_value = " ".join(value.split())
+
+    if len(cleaned_value) <= max_length:
+        return cleaned_value
+
+    return cleaned_value[:max_length - 3] + "..."
+
+def load_selected_recent_entry(event=None):
+    """
+    Load the double-clicked recent entry into the editable form.
+    """
+    selected_items = recent_entries_table.selection()
+
+    if not selected_items:
+        return
+
+    selected_values = recent_entries_table.item(
+        selected_items[0],
+        "values",
+    )
+
+    if not selected_values:
+        return
+
+    selected_change_id = selected_values[0]
+
+    ensure_log_file()
+
+    matching_entry = None
+
+    try:
+        with CSV_FILE.open("r", newline="", encoding="utf-8-sig") as csv_file:
+            reader = csv.DictReader(csv_file)
+
+            for entry in reader:
+                if entry.get("change_id", "") == selected_change_id:
+                    matching_entry = entry
+
+    except OSError as error:
+        messagebox.showerror(
+            "Read Error",
+            f"The project log could not be opened.\n\n{error}",
+        )
+        return
+
+    if matching_entry is None:
+        messagebox.showwarning(
+            "Entry Not Found",
+            f"{selected_change_id} could not be found in the CSV file.",
+        )
+        return
+
+    change_id_var.set(
+        matching_entry.get("change_id", "")
+    )
+    date_var.set(
+        matching_entry.get("date", "")
+    )
+    version_var.set(
+        matching_entry.get("version", "")
+    )
+    sprint_var.set(
+        matching_entry.get("sprint", "")
+    )
+    change_type_var.set(
+        matching_entry.get("change_type", "Feature")
+    )
+    commit_hash_var.set(
+        matching_entry.get("git_commit_hash", "")
+    )
+    screenshot_var.set(
+        matching_entry.get("screenshot_reference", "")
+    )
+    video_reference_var.set(
+        matching_entry.get("video_diary_reference", "")
+    )
+
+    set_text_value(
+        files_changed_text,
+        matching_entry.get("files_changed", ""),
+    )
+    set_text_value(
+        changes_made_text,
+        matching_entry.get("changes_made", ""),
+    )
+    set_text_value(
+        project_intent_text,
+        matching_entry.get("project_intent", ""),
+    )
+    set_text_value(
+        bugs_fixed_text,
+        matching_entry.get("bugs_fixed", ""),
+    )
+    set_text_value(
+        features_added_text,
+        matching_entry.get("features_added", ""),
+    )
+    set_text_value(
+        testing_performed_text,
+        matching_entry.get("testing_performed", ""),
+    )
+    set_text_value(
+        follow_up_text,
+        matching_entry.get("follow_up_items", ""),
+    )
+    set_text_value(
+        notes_text,
+        matching_entry.get("notes", ""),
+    )
+
+    status_var.set(
+        f"Loaded {selected_change_id} into the form."
+    )
 
 def load_recent_entries():
     """
-    Display the most recent CSV entries in the table.
+    Display the most recent CSV entries in the summary table.
     """
     for item in recent_entries_table.get_children():
         recent_entries_table.delete(item)
@@ -269,8 +386,14 @@ def load_recent_entries():
                 entry.get("change_id", ""),
                 entry.get("date", ""),
                 entry.get("change_type", ""),
-                entry.get("files_changed", ""),
-                entry.get("changes_made", ""),
+                create_preview(
+                    entry.get("files_changed", ""),
+                    max_length=55,
+                ),
+                create_preview(
+                    entry.get("changes_made", ""),
+                    max_length=90,
+                ),
                 entry.get("git_commit_hash", ""),
             ),
         )
@@ -278,7 +401,6 @@ def load_recent_entries():
     status_var.set(
         f"{len(entries)} total entries | CSV: {CSV_FILE.name}"
     )
-
 
 def open_csv_file():
     """
@@ -1459,6 +1581,10 @@ table_scrollbar.grid(
 
 recent_entries_table.configure(
     yscrollcommand=table_scrollbar.set
+)
+recent_entries_table.bind(
+    "<Double-1>",
+    load_selected_recent_entry,
 )
 
 status_label = ttk.Label(

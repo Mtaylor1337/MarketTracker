@@ -4,8 +4,10 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from config_version import APP_VERSION, BUILD_DATE
-from database import get_connection
-from market_service import fetch_and_save_prices
+from market_service import (
+    fetch_and_save_prices,
+    get_latest_market_snapshots,
+)
 
 REFRESH_COOLDOWN_SECONDS = 30
 
@@ -39,41 +41,81 @@ def countdown_refresh(seconds_remaining):
     else:
         enable_refresh()
 
+def format_large_currency(value):
+    if value is None:
+        return "--"
+
+    absolute_value = abs(value)
+
+    if absolute_value >= 1_000_000_000_000:
+        return f"${value / 1_000_000_000_000:.2f}T"
+
+    if absolute_value >= 1_000_000_000:
+        return f"${value / 1_000_000_000:.2f}B"
+
+    if absolute_value >= 1_000_000:
+        return f"${value / 1_000_000:.2f}M"
+
+    if absolute_value >= 1_000:
+        return f"${value / 1_000:.2f}K"
+
+    return f"${value:,.2f}"
+
+
+def format_snapshot_time(timestamp):
+    if not timestamp:
+        return "--"
+
+    parsed_timestamp = datetime.fromisoformat(timestamp)
+
+    local_timestamp = parsed_timestamp.astimezone()
+
+    return local_timestamp.strftime("%m/%d/%Y %I:%M:%S %p")
 
 def load_snapshots():
     for row in snapshot_table.get_children():
         snapshot_table.delete(row)
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    snapshots = get_latest_market_snapshots(limit=25)
 
-    cursor.execute("""
-        SELECT
-            snapshots.id,
-            assets.symbol,
-            snapshots.timestamp,
-            snapshots.price
-        FROM snapshots
-        JOIN assets ON snapshots.asset_id = assets.id
-        ORDER BY snapshots.timestamp DESC
-        LIMIT 25
-    """)
+    for snapshot in snapshots:
+        percentage_change = snapshot[
+            "price_change_percentage_24h"
+        ]
 
-    rows = cursor.fetchall()
-    conn.close()
+        if percentage_change is None:
+            formatted_percentage = "--"
+        else:
+            formatted_percentage = (
+                f"{percentage_change:+.2f}%"
+            )
 
-    for snapshot_id, symbol, timestamp, price in rows:
+        rank = snapshot["market_cap_rank"]
+
+        if rank is None:
+            formatted_rank = "--"
+        else:
+            formatted_rank = f"#{rank}"
+
         snapshot_table.insert(
             "",
             "end",
             values=(
-                snapshot_id,
-                symbol,
-                timestamp,
-                f"${price:,.2f}"
-            )
+                snapshot["symbol"],
+                f"${snapshot['price']:,.4f}",
+                formatted_percentage,
+                formatted_rank,
+                format_large_currency(
+                    snapshot["market_cap"]
+                ),
+                format_large_currency(
+                    snapshot["total_volume_24h"]
+                ),
+                format_snapshot_time(
+                    snapshot["collected_at_utc"]
+                ),
+            ),
         )
-
 
 def refresh_prices():
     refresh_button.config(state="disabled")
@@ -287,7 +329,8 @@ def stop_tracking():
 
 root = tk.Tk()
 root.title("MarketTracker")
-root.geometry("950x720")
+root.geometry("1100x760")
+root.minsize(950, 700)
 
 # --------------------------------------------------
 # Application title and version
@@ -321,47 +364,102 @@ header_separator.pack(fill="x", padx=20, pady=(5, 10))
 # Tracking controls
 # --------------------------------------------------
 
-tracking_controls_frame = ttk.Frame(root)
-tracking_controls_frame.pack(fill="x", padx=20, pady=5)
+tracking_controls_frame = ttk.LabelFrame(
+    root,
+    text="Tracking Controls",
+)
+
+tracking_controls_frame.pack(
+    fill="x",
+    padx=20,
+    pady=(5, 8),
+)
+
+controls_inner_frame = ttk.Frame(
+    tracking_controls_frame,
+)
+
+controls_inner_frame.pack(
+    fill="x",
+    padx=15,
+    pady=12,
+)
 
 interval_label = ttk.Label(
-    tracking_controls_frame,
-    text="Check market every:"
+    controls_inner_frame,
+    text="Collection Interval:",
+    font=("Segoe UI", 10, "bold"),
 )
-interval_label.pack(side="left")
 
-interval_choice = tk.StringVar(value="30 sec")
+interval_label.grid(
+    row=0,
+    column=0,
+    sticky="w",
+)
+
+interval_choice = tk.StringVar(
+    value="30 sec",
+)
 
 interval_dropdown = ttk.Combobox(
-    tracking_controls_frame,
+    controls_inner_frame,
     textvariable=interval_choice,
     values=list(REFRESH_INTERVAL_OPTIONS.keys()),
     state="readonly",
-    width=10
+    width=12,
 )
-interval_dropdown.pack(side="left", padx=8)
+
+interval_dropdown.grid(
+    row=0,
+    column=1,
+    padx=(10, 25),
+    sticky="w",
+)
 
 start_tracking_button = ttk.Button(
-    tracking_controls_frame,
+    controls_inner_frame,
     text="Start Tracking",
-    command=start_tracking
+    command=start_tracking,
+    width=15,
 )
-start_tracking_button.pack(side="left", padx=(15, 5))
+
+start_tracking_button.grid(
+    row=0,
+    column=2,
+    padx=5,
+)
 
 stop_tracking_button = ttk.Button(
-    tracking_controls_frame,
+    controls_inner_frame,
     text="Stop Tracking",
     command=stop_tracking,
-    state="disabled"
+    state="disabled",
+    width=15,
 )
-stop_tracking_button.pack(side="left", padx=5)
+
+stop_tracking_button.grid(
+    row=0,
+    column=3,
+    padx=5,
+)
 
 refresh_button = ttk.Button(
-    tracking_controls_frame,
+    controls_inner_frame,
     text="Refresh Now",
-    command=refresh_prices
+    command=refresh_prices,
+    width=15,
 )
-refresh_button.pack(side="left", padx=(15, 5))
+
+refresh_button.grid(
+    row=0,
+    column=4,
+    padx=(20, 5),
+)
+
+controls_inner_frame.columnconfigure(
+    5,
+    weight=1,
+)
 
 
 # --------------------------------------------------
@@ -370,52 +468,98 @@ refresh_button.pack(side="left", padx=(15, 5))
 
 tracking_progress_frame = ttk.LabelFrame(
     root,
-    text="Automatic Tracking"
+    text="Automatic Tracking",
 )
+
 tracking_progress_frame.pack(
     fill="x",
     padx=20,
-    pady=(10, 5)
+    pady=(10, 5),
+)
+
+tracking_info_frame = ttk.Frame(
+    tracking_progress_frame,
+)
+
+tracking_info_frame.pack(
+    fill="x",
+    padx=20,
+    pady=(12, 8),
 )
 
 tracking_status_label = ttk.Label(
-    tracking_progress_frame,
+    tracking_info_frame,
     text="Status: Idle",
-    font=("Segoe UI", 10, "bold")
+    font=("Segoe UI", 11, "bold"),
 )
-tracking_status_label.pack(anchor="w", padx=20, pady=(10, 2))
+
+tracking_status_label.grid(
+    row=0,
+    column=0,
+    sticky="w",
+)
 
 last_scan_label = ttk.Label(
-    tracking_progress_frame,
-    text="Last Scan: --:--:--"
+    tracking_info_frame,
+    text="Last Scan: --:--:--",
 )
-last_scan_label.pack(anchor="w", padx=20)
+
+last_scan_label.grid(
+    row=1,
+    column=0,
+    sticky="w",
+    pady=(8, 0),
+)
 
 next_scan_label = ttk.Label(
-    tracking_progress_frame,
-    text="Next Scan: --:--:--"
+    tracking_info_frame,
+    text="Next Scan: --:--:--",
 )
-next_scan_label.pack(anchor="w", padx=20)
+
+next_scan_label.grid(
+    row=1,
+    column=1,
+    sticky="w",
+    padx=(60, 0),
+    pady=(8, 0),
+)
+
+countdown_label = ttk.Label(
+    tracking_info_frame,
+    text="Ready",
+    font=("Segoe UI", 11, "bold"),
+)
+
+countdown_label.grid(
+    row=0,
+    column=1,
+    sticky="e",
+    padx=(60, 0),
+)
+
+tracking_info_frame.columnconfigure(
+    0,
+    weight=1,
+)
+
+tracking_info_frame.columnconfigure(
+    1,
+    weight=1,
+)
 
 tracking_progress = ttk.Progressbar(
     tracking_progress_frame,
     orient="horizontal",
-    length=700,
     mode="determinate",
     maximum=100,
-    value=0
+    value=0,
 )
+
 tracking_progress.pack(
     fill="x",
     padx=20,
-    pady=(8, 5)
+    pady=(4, 16),
 )
-
-countdown_label = ttk.Label(
-    tracking_progress_frame,
-    text="--:-- Remaining"
-)
-countdown_label.pack(pady=(0, 12))
 
 
 # --------------------------------------------------
@@ -504,28 +648,97 @@ snapshots_label = ttk.Label(
 snapshots_label.pack(pady=(0, 5))
 
 columns = (
-    "ID",
     "Symbol",
-    "Timestamp",
-    "Price"
+    "Price",
+    "24h Change",
+    "Rank",
+    "Market Cap",
+    "24h Volume",
+    "Collected",
 )
 
 snapshot_table = ttk.Treeview(
     root,
     columns=columns,
-    show="headings"
+    show="headings",
 )
 
-for column in columns:
-    snapshot_table.heading(
-        column,
-        text=column
-    )
+snapshot_table.heading(
+    "Symbol",
+    text="Symbol",
+)
 
-    snapshot_table.column(
-        column,
-        width=180
-    )
+snapshot_table.heading(
+    "Price",
+    text="Price",
+)
+
+snapshot_table.heading(
+    "24h Change",
+    text="24h Change",
+)
+
+snapshot_table.heading(
+    "Rank",
+    text="Rank",
+)
+
+snapshot_table.heading(
+    "Market Cap",
+    text="Market Cap",
+)
+
+snapshot_table.heading(
+    "24h Volume",
+    text="24h Volume",
+)
+
+snapshot_table.heading(
+    "Collected",
+    text="Collected",
+)
+
+snapshot_table.column(
+    "Symbol",
+    width=80,
+    anchor="center",
+)
+
+snapshot_table.column(
+    "Price",
+    width=130,
+    anchor="e",
+)
+
+snapshot_table.column(
+    "24h Change",
+    width=100,
+    anchor="e",
+)
+
+snapshot_table.column(
+    "Rank",
+    width=70,
+    anchor="center",
+)
+
+snapshot_table.column(
+    "Market Cap",
+    width=130,
+    anchor="e",
+)
+
+snapshot_table.column(
+    "24h Volume",
+    width=130,
+    anchor="e",
+)
+
+snapshot_table.column(
+    "Collected",
+    width=210,
+    anchor="center",
+)
 
 snapshot_table.pack(
     fill="both",

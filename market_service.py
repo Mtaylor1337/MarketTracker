@@ -191,8 +191,7 @@ def fetch_and_save_prices(
 
         raise
 
-
-def print_latest_market_snapshots():
+def get_latest_market_snapshots(limit=25):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -201,6 +200,7 @@ def print_latest_market_snapshots():
         SELECT
             market_snapshots.id,
             assets.symbol,
+            assets.name,
             market_snapshots.collected_at_utc,
             market_snapshots.price,
             market_snapshots.market_cap,
@@ -208,47 +208,66 @@ def print_latest_market_snapshots():
             market_snapshots.total_volume_24h,
             market_snapshots.high_24h,
             market_snapshots.low_24h,
-            market_snapshots.price_change_percentage_24h
+            market_snapshots.price_change_24h,
+            market_snapshots.price_change_percentage_24h,
+            market_snapshots.circulating_supply,
+            market_snapshots.total_supply,
+            market_snapshots.max_supply
         FROM market_snapshots
         JOIN assets
             ON market_snapshots.asset_id = assets.id
         ORDER BY market_snapshots.id DESC
-        LIMIT 5
-        """
+        LIMIT ?
+        """,
+        (limit,),
     )
 
-    snapshots = cursor.fetchall()
+    rows = cursor.fetchall()
     conn.close()
+
+    snapshots = []
+
+    for row in rows:
+        snapshots.append(
+            {
+                "snapshot_id": row[0],
+                "symbol": row[1],
+                "name": row[2],
+                "collected_at_utc": row[3],
+                "price": row[4],
+                "market_cap": row[5],
+                "market_cap_rank": row[6],
+                "total_volume_24h": row[7],
+                "high_24h": row[8],
+                "low_24h": row[9],
+                "price_change_24h": row[10],
+                "price_change_percentage_24h": row[11],
+                "circulating_supply": row[12],
+                "total_supply": row[13],
+                "max_supply": row[14],
+            }
+        )
+
+    return snapshots
+
+def print_latest_market_snapshots():
+    snapshots = get_latest_market_snapshots(limit=5)
 
     print("\nLatest rich market snapshots:")
 
     for snapshot in reversed(snapshots):
-        (
-            snapshot_id,
-            symbol,
-            collected_at_utc,
-            price,
-            market_cap,
-            market_cap_rank,
-            total_volume_24h,
-            high_24h,
-            low_24h,
-            price_change_percentage_24h,
-        ) = snapshot
-
         print(
-            f"  {snapshot_id}: "
-            f"{symbol} | "
-            f"price=${price:,.4f} | "
-            f"rank={market_cap_rank} | "
-            f"market cap={market_cap} | "
-            f"volume={total_volume_24h} | "
-            f"high={high_24h} | "
-            f"low={low_24h} | "
-            f"24h={price_change_percentage_24h}% | "
-            f"{collected_at_utc}"
+            f"  {snapshot['snapshot_id']}: "
+            f"{snapshot['symbol']} | "
+            f"price=${snapshot['price']:,.4f} | "
+            f"rank={snapshot['market_cap_rank']} | "
+            f"market cap={snapshot['market_cap']} | "
+            f"volume={snapshot['total_volume_24h']} | "
+            f"high={snapshot['high_24h']} | "
+            f"low={snapshot['low_24h']} | "
+            f"24h={snapshot['price_change_percentage_24h']}% | "
+            f"{snapshot['collected_at_utc']}"
         )
-
 
 def main():
     assets_saved = fetch_and_save_prices()

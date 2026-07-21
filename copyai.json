@@ -1,0 +1,41 @@
+{
+  "contexts": [
+    {
+      "name": "Current Sprint",
+      "description": "Files currently being developed",
+      "files": [
+        "ui.py",
+        "market_service.py",
+        "database.py",
+        "config.py"
+      ]
+    },
+    {
+      "name": "Core Application",
+      "description": "Main application files",
+      "files": [
+        "app.py",
+        "ui.py",
+        "market_service.py",
+        "database.py",
+        "config.py"
+      ]
+    },
+    {
+      "name": "Database",
+      "description": "Database schema and migrations",
+      "files": [
+        "database.py",
+        "upgrade_asset_metadata.py"
+      ]
+    },
+    {
+      "name": "Entire Project",
+      "description": "All Python source files",
+      "files": [
+        "**/*.py",
+        "*.md"
+      ]
+    }
+  ]
+}

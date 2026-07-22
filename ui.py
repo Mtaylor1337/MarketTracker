@@ -120,6 +120,669 @@ def format_tracking_time(total_seconds):
     return f"{minutes:02d}:{seconds:02d}"
 
 
+def _build_snapshot_table_rows(snapshots, newer_than_id=None):
+    rows = []
+
+    for snapshot in snapshots:
+        percentage_change = snapshot["price_change_percentage_24h"]
+
+        if percentage_change is None:
+            formatted_percentage = "--"
+            row_tag = "neutral"
+        else:
+            formatted_percentage = f"{percentage_change:+.2f}%"
+
+            if percentage_change > 0:
+                row_tag = "positive"
+            elif percentage_change < 0:
+                row_tag = "negative"
+            else:
+                row_tag = "neutral"
+
+        rank = snapshot["market_cap_rank"]
+
+        if rank is None:
+            formatted_rank = "--"
+        else:
+            formatted_rank = f"#{rank}"
+
+        row_tags = [row_tag]
+
+        if (
+            newer_than_id is not None
+            and snapshot["snapshot_id"] > newer_than_id
+        ):
+            row_tags.append("new")
+
+        rows.append(
+            {
+                "values": (
+                    snapshot["snapshot_id"],
+                    snapshot["symbol"],
+                    f"${snapshot['price']:,.4f}",
+                    formatted_percentage,
+                    formatted_rank,
+                    format_large_currency(
+                        snapshot["market_cap"]
+                    ),
+                    format_large_currency(
+                        snapshot["total_volume_24h"]
+                    ),
+                    format_snapshot_time(
+                        snapshot["collected_at_utc"]
+                    ),
+                ),
+                "tags": tuple(row_tags),
+            }
+        )
+
+    return rows
+
+
+class MarketSnapshotsPage(tk.Frame):
+    def __init__(self, parent, colors=None):
+        self.colors = {
+            "window": COLOR_WINDOW,
+            "card": COLOR_CARD,
+            "border": COLOR_BORDER,
+            "text": COLOR_TEXT,
+            "muted": COLOR_MUTED,
+            "primary": COLOR_SIDEBAR_ACTIVE,
+            "success": COLOR_SUCCESS,
+            "danger": COLOR_DANGER,
+            "table_header": COLOR_TABLE_HEADER,
+        }
+        if colors:
+            self.colors.update(colors)
+
+        super().__init__(parent, background=self.colors["window"])
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+
+        self._configure_styles()
+        self._build_header()
+        self._build_filters()
+        self._build_table()
+        self.load_snapshots()
+
+    def _configure_styles(self):
+        style = ttk.Style(self)
+        style.configure(
+            "Snapshots.Primary.TButton",
+            font=("Segoe UI", 10, "bold"),
+            padding=(14, 9),
+            foreground="#ffffff",
+            background=self.colors["primary"],
+        )
+        style.map(
+            "Snapshots.Primary.TButton",
+            background=[("active", "#1d4ed8")],
+        )
+        style.configure(
+            "Snapshots.TButton",
+            font=("Segoe UI", 10, "bold"),
+            padding=(14, 9),
+        )
+        style.configure(
+            "Snapshots.TCombobox",
+            padding=6,
+        )
+        style.configure(
+            "Snapshots.Treeview",
+            background=self.colors["card"],
+            fieldbackground=self.colors["card"],
+            foreground=self.colors["text"],
+            rowheight=30,
+            borderwidth=0,
+            font=("Segoe UI", 9),
+        )
+        style.configure(
+            "Snapshots.Treeview.Heading",
+            background=self.colors["table_header"],
+            foreground=self.colors["text"],
+            font=("Segoe UI", 9, "bold"),
+            relief="flat",
+            padding=(8, 8),
+        )
+        style.map(
+            "Snapshots.Treeview.Heading",
+            background=[("active", "#DCE5ED")],
+        )
+
+    def _build_header(self):
+        header_frame = tk.Frame(
+            self,
+            background=self.colors["window"],
+        )
+        header_frame.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=28,
+            pady=(24, 16),
+        )
+        header_frame.columnconfigure(0, weight=1)
+
+        tk.Label(
+            header_frame,
+            text="Market Snapshots",
+            background=self.colors["window"],
+            foreground=self.colors["text"],
+            font=("Segoe UI", 22, "bold"),
+        ).grid(row=0, column=0, sticky="w")
+
+        tk.Label(
+            header_frame,
+            text="Review the latest market snapshot records collected by the tracker",
+            background=self.colors["window"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 10),
+        ).grid(row=1, column=0, sticky="w", pady=(3, 0))
+
+        self.record_count_label = tk.Label(
+            header_frame,
+            text="0 latest records",
+            background=self.colors["window"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        )
+        self.record_count_label.grid(
+            row=0,
+            column=1,
+            rowspan=2,
+            sticky="e",
+        )
+
+    def _build_filters(self):
+        filters_card = tk.Frame(
+            self,
+            background=self.colors["card"],
+            highlightbackground=self.colors["border"],
+            highlightthickness=1,
+        )
+        filters_card.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=28,
+            pady=(0, 14),
+        )
+        filters_card.columnconfigure(1, weight=1)
+        filters_card.columnconfigure(3, weight=0)
+        filters_card.columnconfigure(5, weight=1)
+
+        tk.Label(
+            filters_card,
+            text="Search Symbol",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=0, column=0, sticky="w", padx=(18, 8), pady=(16, 8))
+
+        self.search_var = tk.StringVar()
+        self.search_entry = ttk.Entry(
+            filters_card,
+            textvariable=self.search_var,
+            width=20,
+        )
+        self.search_entry.grid(
+            row=0,
+            column=1,
+            sticky="ew",
+            padx=(0, 18),
+            pady=(16, 8),
+        )
+
+        tk.Label(
+            filters_card,
+            text="24h Change",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=0, column=2, sticky="w", padx=(0, 8), pady=(16, 8))
+
+        self.change_filter_var = tk.StringVar(value="All")
+        self.change_filter_dropdown = ttk.Combobox(
+            filters_card,
+            textvariable=self.change_filter_var,
+            values=["All", "Positive", "Negative", "Neutral"],
+            state="readonly",
+            width=14,
+            style="Snapshots.TCombobox",
+        )
+        self.change_filter_dropdown.grid(
+            row=0,
+            column=3,
+            sticky="w",
+            padx=(0, 18),
+            pady=(16, 8),
+        )
+
+        tk.Label(
+            filters_card,
+            text="Sort",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=1, column=0, sticky="w", padx=(18, 8), pady=(8, 16))
+
+        self.sort_var = tk.StringVar(value="Newest ↓")
+        self.sort_dropdown = ttk.Combobox(
+            filters_card,
+            textvariable=self.sort_var,
+            values=[
+                "Newest ↓",
+                "Newest ↑",
+                "Oldest ↓",
+                "Oldest ↑",
+                "Highest Market Cap ↓",
+                "Highest Market Cap ↑",
+                "Lowest Market Cap ↓",
+                "Lowest Market Cap ↑",
+                "Largest 24h Volume ↓",
+                "Largest 24h Volume ↑",
+                "Biggest 24h Change ↓",
+                "Biggest 24h Change ↑",
+            ],
+            state="readonly",
+            width=26,
+            style="Snapshots.TCombobox",
+        )
+        self.sort_dropdown.grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=(0, 18),
+            pady=(8, 16),
+        )
+
+        self.apply_filters_button = ttk.Button(
+            filters_card,
+            text="Apply Filters",
+            command=self.apply_filters,
+            style="Snapshots.Primary.TButton",
+        )
+        self.apply_filters_button.grid(
+            row=1,
+            column=2,
+            padx=4,
+            pady=(8, 16),
+        )
+
+        self.reset_filters_button = ttk.Button(
+            filters_card,
+            text="Reset",
+            command=self.reset_filters,
+            style="Snapshots.TButton",
+        )
+        self.reset_filters_button.grid(
+            row=1,
+            column=3,
+            padx=(4, 18),
+            pady=(8, 16),
+        )
+
+        self.current_sort_label = tk.Label(
+            filters_card,
+            text="Current Sort: Newest • ↓",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9, "bold"),
+        )
+        self.current_sort_label.grid(
+            row=2,
+            column=0,
+            columnspan=4,
+            sticky="w",
+            padx=(18, 18),
+            pady=(0, 14),
+        )
+
+    def _build_table(self):
+        table_card = tk.Frame(
+            self,
+            background=self.colors["card"],
+            highlightbackground=self.colors["border"],
+            highlightthickness=1,
+        )
+        table_card.grid(
+            row=2,
+            column=0,
+            sticky="nsew",
+            padx=28,
+            pady=(0, 24),
+        )
+        table_card.columnconfigure(0, weight=1)
+        table_card.rowconfigure(1, weight=1)
+
+        columns = (
+            "ID",
+            "Symbol",
+            "Price",
+            "24h Change",
+            "Rank",
+            "Market Cap",
+            "24h Volume",
+            "Collected",
+        )
+
+        self.snapshot_table = ttk.Treeview(
+            table_card,
+            columns=columns,
+            show="headings",
+            style="Snapshots.Treeview",
+        )
+
+        self.snapshot_scrollbar = ttk.Scrollbar(
+            table_card,
+            orient="vertical",
+            command=self.snapshot_table.yview,
+        )
+        self.snapshot_table.configure(
+            yscrollcommand=self.snapshot_scrollbar.set,
+        )
+
+        self._header_sort_map = {
+            "ID": "Newest",
+            "Symbol": "Newest",
+            "Price": "Newest",
+            "24h Change": "Biggest 24h Change",
+            "Rank": "Newest",
+            "Market Cap": "Highest Market Cap",
+            "24h Volume": "Largest 24h Volume",
+            "Collected": "Newest",
+        }
+
+        for column_name in columns:
+            self.snapshot_table.heading(
+                column_name,
+                text=column_name,
+                command=lambda col=column_name: self._handle_header_click(col),
+            )
+
+        self.snapshot_table.column(
+            "ID",
+            width=55,
+            minwidth=45,
+            anchor="center",
+            stretch=False,
+        )
+        self.snapshot_table.column(
+            "Symbol",
+            width=75,
+            minwidth=65,
+            anchor="center",
+        )
+        self.snapshot_table.column(
+            "Price",
+            width=115,
+            minwidth=100,
+            anchor="e",
+        )
+        self.snapshot_table.column(
+            "24h Change",
+            width=95,
+            minwidth=85,
+            anchor="e",
+        )
+        self.snapshot_table.column(
+            "Rank",
+            width=60,
+            minwidth=55,
+            anchor="center",
+        )
+        self.snapshot_table.column(
+            "Market Cap",
+            width=115,
+            minwidth=100,
+            anchor="e",
+        )
+        self.snapshot_table.column(
+            "24h Volume",
+            width=115,
+            minwidth=100,
+            anchor="e",
+        )
+        self.snapshot_table.column(
+            "Collected",
+            width=190,
+            minwidth=175,
+            anchor="center",
+        )
+
+        self.snapshot_table.tag_configure(
+            "positive",
+            foreground=self.colors["success"],
+        )
+        self.snapshot_table.tag_configure(
+            "negative",
+            foreground=self.colors["danger"],
+        )
+        self.snapshot_table.tag_configure(
+            "neutral",
+            foreground=self.colors["text"],
+        )
+        self.snapshot_table.tag_configure(
+            "new",
+            background="#DFF3E8",
+        )
+
+        self.empty_state_label = tk.Label(
+            table_card,
+            text="No matching market snapshots found",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 11, "bold"),
+        )
+        self.empty_state_label.grid(
+            row=1,
+            column=0,
+            columnspan=2,
+            sticky="n",
+            padx=18,
+            pady=(80, 0),
+        )
+        self.empty_state_label.grid_remove()
+
+        self.snapshot_table.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=(18, 0),
+            pady=(0, 18),
+        )
+        self.snapshot_scrollbar.grid(
+            row=1,
+            column=1,
+            sticky="ns",
+            padx=(0, 18),
+            pady=(0, 18),
+        )
+
+    def _handle_header_click(self, column_name):
+        selected_sort_mode = self._header_sort_map.get(column_name, "Newest")
+        current_sort_text = self.sort_var.get()
+        current_sort_mode = current_sort_text.replace(" ↑", "").replace(" ↓", "")
+
+        if current_sort_mode == selected_sort_mode:
+            if current_sort_text.endswith("↓"):
+                self.sort_var.set(f"{selected_sort_mode} ↑")
+            else:
+                self.sort_var.set(f"{selected_sort_mode} ↓")
+        else:
+            self.sort_var.set(f"{selected_sort_mode} ↓")
+
+        self.load_snapshots()
+
+    def _update_header_indicators(self):
+        active_sort_text = self.sort_var.get()
+        active_sort_mode = active_sort_text.replace(" ↑", "").replace(" ↓", "")
+        direction_marker = "↓" if active_sort_text.endswith("↓") else "↑"
+
+        active_sort_label = None
+        if active_sort_mode in {"Newest", "Oldest"}:
+            active_sort_label = "ID"
+        elif active_sort_mode in {"Highest Market Cap", "Lowest Market Cap"}:
+            active_sort_label = "Market Cap"
+        elif active_sort_mode == "Largest 24h Volume":
+            active_sort_label = "24h Volume"
+        elif active_sort_mode == "Biggest 24h Change":
+            active_sort_label = "24h Change"
+
+        for column_name in self._header_sort_map:
+            heading_text = column_name
+            if column_name == active_sort_label:
+                heading_text = f"{column_name} {direction_marker}"
+            self.snapshot_table.heading(
+                column_name,
+                text=heading_text,
+            )
+
+        self.current_sort_label.config(
+            text=f"Current Sort: {active_sort_mode} • {direction_marker}"
+        )
+
+    def _get_filtered_snapshots(self, snapshots):
+        search_text = self.search_var.get().strip().lower()
+        selected_change = self.change_filter_var.get()
+
+        filtered_snapshots = []
+
+        for snapshot in snapshots:
+            symbol = (snapshot["symbol"] or "").lower()
+            name = (snapshot["name"] or "").lower()
+
+            if search_text and search_text not in symbol and search_text not in name:
+                continue
+
+            percentage_change = snapshot["price_change_percentage_24h"]
+            if selected_change == "Positive":
+                if percentage_change is None or percentage_change <= 0:
+                    continue
+            elif selected_change == "Negative":
+                if percentage_change is None or percentage_change >= 0:
+                    continue
+            elif selected_change == "Neutral":
+                if percentage_change is None or percentage_change != 0:
+                    continue
+
+            filtered_snapshots.append(snapshot)
+
+        return self._sort_snapshots(filtered_snapshots)
+
+    def _sort_snapshots(self, snapshots):
+        sort_text = self.sort_var.get()
+        sort_mode = sort_text.replace(" ↑", "").replace(" ↓", "")
+        reverse = sort_text.endswith("↓")
+
+        if sort_mode == "Oldest":
+            return sorted(
+                snapshots,
+                key=lambda item: (
+                    item["snapshot_id"]
+                    if item["snapshot_id"] is not None
+                    else 0
+                ),
+                reverse=reverse,
+            )
+
+        if sort_mode == "Highest Market Cap":
+            return sorted(
+                snapshots,
+                key=lambda item: (
+                    item["market_cap"]
+                    if item["market_cap"] is not None
+                    else -1
+                ),
+                reverse=reverse,
+            )
+
+        if sort_mode == "Lowest Market Cap":
+            return sorted(
+                snapshots,
+                key=lambda item: (
+                    item["market_cap"]
+                    if item["market_cap"] is not None
+                    else float("inf")
+                ),
+                reverse=reverse,
+            )
+
+        if sort_mode == "Largest 24h Volume":
+            return sorted(
+                snapshots,
+                key=lambda item: (
+                    item["total_volume_24h"]
+                    if item["total_volume_24h"] is not None
+                    else -1
+                ),
+                reverse=reverse,
+            )
+
+        if sort_mode == "Biggest 24h Change":
+            return sorted(
+                snapshots,
+                key=lambda item: (
+                    item["price_change_percentage_24h"]
+                    if item["price_change_percentage_24h"] is not None
+                    else float("-inf")
+                ),
+                reverse=reverse,
+            )
+
+        return sorted(
+            snapshots,
+            key=lambda item: (
+                item["snapshot_id"]
+                if item["snapshot_id"] is not None
+                else 0
+            ),
+            reverse=reverse,
+        )
+
+    def apply_filters(self):
+        self.load_snapshots()
+
+    def reset_filters(self):
+        self.search_var.set("")
+        self.change_filter_var.set("All")
+        self.sort_var.set("Newest ↓")
+        self.load_snapshots()
+
+    def load_snapshots(self):
+        snapshots = get_latest_market_snapshots(limit=200)
+        filtered_snapshots = self._get_filtered_snapshots(snapshots)
+        snapshot_rows = _build_snapshot_table_rows(filtered_snapshots)
+
+        for row in self.snapshot_table.get_children():
+            self.snapshot_table.delete(row)
+
+        if not snapshot_rows:
+            self.snapshot_table.grid_remove()
+            self.snapshot_scrollbar.grid_remove()
+            self.empty_state_label.grid()
+            self.record_count_label.config(text="0 matching records")
+            return
+
+        self.empty_state_label.grid_remove()
+        self.snapshot_table.grid()
+        self.snapshot_scrollbar.grid()
+
+        for row in snapshot_rows:
+            self.snapshot_table.insert(
+                "",
+                "end",
+                values=row["values"],
+                tags=row["tags"],
+            )
+
+        self.record_count_label.config(
+            text=f"{len(snapshot_rows)} matching records"
+        )
+        self._update_header_indicators()
+
+
 # --------------------------------------------------
 # Snapshot table
 # --------------------------------------------------
@@ -199,69 +862,29 @@ def mark_data_updated():
 
 
 def load_snapshots(newer_than_id=None):
+    snapshots = get_latest_market_snapshots(limit=25)
+    snapshot_rows = _build_snapshot_table_rows(
+        snapshots,
+        newer_than_id=newer_than_id,
+    )
+
     for row in snapshot_table.get_children():
         snapshot_table.delete(row)
 
-    snapshots = get_latest_market_snapshots(limit=25)
-
-    for snapshot in snapshots:
-        percentage_change = snapshot[
-            "price_change_percentage_24h"
-        ]
-
-        if percentage_change is None:
-            formatted_percentage = "--"
-            row_tag = "neutral"
-        else:
-            formatted_percentage = f"{percentage_change:+.2f}%"
-
-            if percentage_change > 0:
-                row_tag = "positive"
-            elif percentage_change < 0:
-                row_tag = "negative"
-            else:
-                row_tag = "neutral"
-
-        rank = snapshot["market_cap_rank"]
-
-        if rank is None:
-            formatted_rank = "--"
-        else:
-            formatted_rank = f"#{rank}"
-
-        row_tags = [row_tag]
-
-        if (
-            newer_than_id is not None
-            and snapshot["snapshot_id"] > newer_than_id
-        ):
-            row_tags.append("new")
-
+    for row in snapshot_rows:
         snapshot_table.insert(
             "",
             "end",
-            values=(
-                snapshot["snapshot_id"],
-                snapshot["symbol"],
-                f"${snapshot['price']:,.4f}",
-                formatted_percentage,
-                formatted_rank,
-                format_large_currency(
-                    snapshot["market_cap"]
-                ),
-                format_large_currency(
-                    snapshot["total_volume_24h"]
-                ),
-                format_snapshot_time(
-                    snapshot["collected_at_utc"]
-                ),
-            ),
-            tags=tuple(row_tags),
+            values=row["values"],
+            tags=row["tags"],
         )
 
     snapshot_count_label.config(
         text=f"{len(snapshots)} latest records"
     )
+
+    if "snapshots_page" in globals():
+        snapshots_page.load_snapshots()
 
 
 def refresh_prices():
@@ -513,6 +1136,7 @@ def stop_tracking():
 def set_active_navigation(active_button):
     navigation_buttons = (
         dashboard_nav_button,
+        snapshots_nav_button,
         reports_nav_button,
     )
 
@@ -533,17 +1157,28 @@ def set_active_navigation(active_button):
         font=("Segoe UI", 10, "bold"),
     )
 
+
 def show_dashboard_page():
     reports_page.grid_remove()
+    snapshots_page.grid_remove()
     main_frame.grid()
     set_active_navigation(dashboard_nav_button)
 
 
 def show_reports_page():
     main_frame.grid_remove()
+    snapshots_page.grid_remove()
     reports_page.load_assets()
     reports_page.grid()
     set_active_navigation(reports_nav_button)
+
+
+def show_snapshots_page():
+    main_frame.grid_remove()
+    reports_page.grid_remove()
+    snapshots_page.load_snapshots()
+    snapshots_page.grid()
+    set_active_navigation(snapshots_nav_button)
 
 root = tk.Tk()
 root.title(f"MarketTracker {APP_VERSION}")
@@ -716,6 +1351,7 @@ dashboard_nav_button.grid(
 snapshots_nav_button = tk.Button(
     sidebar,
     text="  Market Snapshots",
+    command=show_snapshots_page,
     anchor="w",
     background=COLOR_SIDEBAR_BUTTON,
     foreground="#DCE4EC",
@@ -869,6 +1505,27 @@ reports_page.grid(
     sticky="nsew",
 )
 reports_page.grid_remove()
+
+snapshots_page = MarketSnapshotsPage(
+    root,
+    colors={
+        "window": COLOR_WINDOW,
+        "card": COLOR_CARD,
+        "border": COLOR_BORDER,
+        "text": COLOR_TEXT,
+        "muted": COLOR_MUTED,
+        "primary": COLOR_SIDEBAR_ACTIVE,
+        "success": COLOR_SUCCESS,
+        "danger": COLOR_DANGER,
+        "table_header": COLOR_TABLE_HEADER,
+    },
+)
+snapshots_page.grid(
+    row=0,
+    column=1,
+    sticky="nsew",
+)
+snapshots_page.grid_remove()
 
 # --------------------------------------------------
 # Dashboard header

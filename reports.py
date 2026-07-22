@@ -219,7 +219,8 @@ class ReportsPage(tk.Frame):
             padx=28,
             pady=(0, 14),
         )
-        filters_card.columnconfigure(4, weight=1)
+        filters_card.columnconfigure(1, weight=1)
+        filters_card.columnconfigure(3, weight=1)
 
         tk.Label(
             filters_card,
@@ -227,7 +228,7 @@ class ReportsPage(tk.Frame):
             background=self.colors["card"],
             foreground=self.colors["muted"],
             font=("Segoe UI", 9),
-        ).grid(row=0, column=0, sticky="w", padx=(18, 8), pady=16)
+        ).grid(row=0, column=0, sticky="w", padx=(18, 8), pady=(16, 8))
 
         self.asset_choice = tk.StringVar()
         self.asset_dropdown = ttk.Combobox(
@@ -240,9 +241,9 @@ class ReportsPage(tk.Frame):
         self.asset_dropdown.grid(
             row=0,
             column=1,
-            sticky="w",
+            sticky="ew",
             padx=(0, 18),
-            pady=16,
+            pady=(16, 8),
         )
 
         tk.Label(
@@ -251,7 +252,7 @@ class ReportsPage(tk.Frame):
             background=self.colors["card"],
             foreground=self.colors["muted"],
             font=("Segoe UI", 9),
-        ).grid(row=0, column=2, sticky="w", padx=(0, 8), pady=16)
+        ).grid(row=0, column=2, sticky="w", padx=(0, 8), pady=(16, 8))
 
         self.range_choice = tk.StringVar(value="Last 7 Days")
         self.range_dropdown = ttk.Combobox(
@@ -265,9 +266,9 @@ class ReportsPage(tk.Frame):
         self.range_dropdown.grid(
             row=0,
             column=3,
-            sticky="w",
+            sticky="ew",
             padx=(0, 18),
-            pady=16,
+            pady=(16, 8),
         )
 
         ttk.Button(
@@ -275,7 +276,7 @@ class ReportsPage(tk.Frame):
             text="Update Report",
             command=self.refresh_report,
             style="Reports.Primary.TButton",
-        ).grid(row=0, column=5, padx=5, pady=12)
+        ).grid(row=1, column=0, padx=(18, 5), pady=(8, 16), sticky="w")
 
         self.export_button = ttk.Button(
             filters_card,
@@ -285,10 +286,11 @@ class ReportsPage(tk.Frame):
             style="Reports.TButton",
         )
         self.export_button.grid(
-            row=0,
-            column=6,
+            row=1,
+            column=1,
             padx=(5, 18),
-            pady=12,
+            pady=(8, 16),
+            sticky="w",
         )
 
     def _build_summary_cards(self):

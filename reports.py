@@ -10,10 +10,9 @@ from database import get_connection
 
 
 REPORT_RANGE_OPTIONS = {
-    "Last 24 Hours": timedelta(hours=24),
     "Last 7 Days": timedelta(days=7),
     "Last 30 Days": timedelta(days=30),
-    "Last 90 Days": timedelta(days=90),
+    "Last 60 Days": timedelta(days=60),
     "All Data": None,
 }
 
@@ -245,6 +244,10 @@ class ReportsPage(tk.Frame):
             padx=(0, 18),
             pady=(16, 8),
         )
+        self.asset_dropdown.bind(
+            "<<ComboboxSelected>>",
+            lambda _event: self.refresh_report(),
+        )
 
         tk.Label(
             filters_card,
@@ -269,6 +272,10 @@ class ReportsPage(tk.Frame):
             sticky="ew",
             padx=(0, 18),
             pady=(16, 8),
+        )
+        self.range_dropdown.bind(
+            "<<ComboboxSelected>>",
+            lambda _event: self.refresh_report(),
         )
 
         ttk.Button(
@@ -625,13 +632,20 @@ class ReportsPage(tk.Frame):
         self.axes.clear()
         self._style_axes()
 
+        selected_range = self.range_choice.get()
+        range_delta = REPORT_RANGE_OPTIONS[selected_range]
+
         if not self.current_rows:
             self._draw_empty_chart(
                 "No records were found for this time range"
             )
             return
 
-        display_rows = self._downsample_rows(self.current_rows, 2000)
+        display_rows = self._downsample_rows(
+            self.current_rows,
+            2000,
+        )
+
         timestamps = []
         prices = []
 
@@ -639,14 +653,19 @@ class ReportsPage(tk.Frame):
             parsed_timestamp = datetime.fromisoformat(
                 timestamp.replace("Z", "+00:00")
             )
+
             if parsed_timestamp.tzinfo is None:
                 parsed_timestamp = parsed_timestamp.replace(
                     tzinfo=timezone.utc
                 )
-            timestamps.append(parsed_timestamp.astimezone())
+
+            timestamps.append(
+                parsed_timestamp.astimezone()
+            )
             prices.append(price)
 
         line_color = self.colors["primary"]
+
         if prices[-1] < prices[0]:
             line_color = self.colors["danger"]
 
@@ -656,6 +675,7 @@ class ReportsPage(tk.Frame):
             color=line_color,
             linewidth=2,
         )
+
         self.axes.fill_between(
             timestamps,
             prices,
@@ -663,12 +683,39 @@ class ReportsPage(tk.Frame):
             color=line_color,
             alpha=0.08,
         )
+
         self.axes.set_ylabel(
             "Price (USD)",
             color=self.colors["muted"],
         )
-        self.axes.tick_params(axis="x", rotation=25)
-        self.figure.autofmt_xdate(rotation=25, ha="right")
+
+        if range_delta is not None:
+            range_end = datetime.now().astimezone()
+            range_start = range_end - range_delta
+
+            self.axes.set_xlim(
+                range_start,
+                range_end,
+            )
+
+        elif len(timestamps) == 1:
+            single_point_padding = timedelta(hours=1)
+
+            self.axes.set_xlim(
+                timestamps[0] - single_point_padding,
+                timestamps[0] + single_point_padding,
+            )
+
+        self.axes.tick_params(
+            axis="x",
+            rotation=25,
+        )
+
+        self.figure.autofmt_xdate(
+            rotation=25,
+            ha="right",
+        )
+
         self.chart_canvas.draw_idle()
 
     def _style_axes(self):

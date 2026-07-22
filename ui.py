@@ -4,6 +4,7 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from config_version import APP_VERSION, BUILD_DATE
+from database import create_tables
 from market_service import (
     fetch_and_save_prices,
     get_latest_market_snapshots,
@@ -1184,6 +1185,9 @@ def show_snapshots_page():
     snapshots_page.load_snapshots()
     snapshots_page.grid()
     set_active_navigation(snapshots_nav_button)
+
+
+create_tables()
 
 
 def show_portfolio_page():

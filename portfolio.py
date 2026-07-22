@@ -2,7 +2,7 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import ttk
 
-from database import get_connection
+from database import get_connection, save_portfolio_position
 
 DEFAULT_COLORS = {
     "window": "#f4f7fb",
@@ -42,7 +42,8 @@ def _format_snapshot_time(timestamp):
     if not timestamp:
         return "--"
 
-    parsed_timestamp = datetime.fromisoformat(timestamp)
+    normalized_timestamp = timestamp.replace("Z", "+00:00")
+    parsed_timestamp = datetime.fromisoformat(normalized_timestamp)
     local_timestamp = parsed_timestamp.astimezone()
     return local_timestamp.strftime("%m/%d/%Y %I:%M:%S %p")
 
@@ -64,6 +65,24 @@ def get_portfolio_summary():
 
     conn.close()
     return asset_count, snapshot_count, position_count
+
+
+def get_portfolio_asset_options():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, symbol, COALESCE(name, symbol)
+        FROM assets
+        ORDER BY symbol ASC
+        """
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
 
 
 def get_portfolio_rows(search_text="", change_filter="All", sort_mode="Symbol A-Z"):
@@ -181,13 +200,16 @@ class PortfolioPage(tk.Frame):
         super().__init__(parent, background=self.colors["window"])
 
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(3, weight=1)
+        self.rowconfigure(4, weight=1)
 
+        self.asset_lookup = {}
         self._configure_styles()
         self._build_header()
         self._build_summary_cards()
         self._build_filters()
         self._build_table()
+        self._build_position_editor()
+        self.load_position_options()
         self.load_summary()
 
     def _configure_styles(self):
@@ -209,6 +231,10 @@ class PortfolioPage(tk.Frame):
             padding=(14, 9),
         )
         style.configure(
+            "Portfolio.TCombobox",
+            padding=6,
+        )
+        style.configure(
             "Portfolio.Treeview",
             background=self.colors["card"],
             fieldbackground=self.colors["card"],
@@ -224,6 +250,10 @@ class PortfolioPage(tk.Frame):
             font=("Segoe UI", 9, "bold"),
             relief="flat",
             padding=(8, 8),
+        )
+        style.map(
+            "Portfolio.Treeview.Heading",
+            background=[("active", "#DCE5ED")],
         )
 
     def _build_header(self):
@@ -412,6 +442,7 @@ class PortfolioPage(tk.Frame):
             values=["All", "Positive", "Negative", "Neutral"],
             state="readonly",
             width=14,
+            style="Portfolio.TCombobox",
         )
         self.change_filter_dropdown.grid(
             row=0,
@@ -444,6 +475,7 @@ class PortfolioPage(tk.Frame):
             ],
             state="readonly",
             width=20,
+            style="Portfolio.TCombobox",
         )
         self.sort_dropdown.grid(
             row=1,
@@ -479,6 +511,165 @@ class PortfolioPage(tk.Frame):
             pady=(8, 16),
         )
 
+    def _build_position_editor(self):
+        editor_frame = tk.Frame(
+            self,
+            background=self.colors["card"],
+            highlightbackground=self.colors["border"],
+            highlightthickness=1,
+        )
+        editor_frame.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=28,
+            pady=(0, 14),
+        )
+        editor_frame.columnconfigure(1, weight=1)
+        editor_frame.columnconfigure(3, weight=1)
+        editor_frame.columnconfigure(5, weight=1)
+
+        tk.Label(
+            editor_frame,
+            text="Position Editor",
+            background=self.colors["card"],
+            foreground=self.colors["text"],
+            font=("Segoe UI", 11, "bold"),
+        ).grid(row=0, column=0, columnspan=6, sticky="w", padx=(18, 8), pady=(16, 12))
+
+        tk.Label(
+            editor_frame,
+            text="Asset",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=1, column=0, sticky="w", padx=(18, 8), pady=(0, 8))
+
+        self.position_asset_var = tk.StringVar()
+        self.position_asset_dropdown = ttk.Combobox(
+            editor_frame,
+            textvariable=self.position_asset_var,
+            state="readonly",
+            width=22,
+            style="Portfolio.TCombobox",
+        )
+        self.position_asset_dropdown.grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=(0, 18),
+            pady=(0, 8),
+        )
+
+        tk.Label(
+            editor_frame,
+            text="Qty",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=1, column=2, sticky="w", padx=(0, 8), pady=(0, 8))
+
+        self.position_quantity_var = tk.StringVar(value="0")
+        self.position_quantity_entry = ttk.Entry(
+            editor_frame,
+            textvariable=self.position_quantity_var,
+            width=14,
+        )
+        self.position_quantity_entry.grid(
+            row=1,
+            column=3,
+            sticky="ew",
+            padx=(0, 18),
+            pady=(0, 8),
+        )
+
+        tk.Label(
+            editor_frame,
+            text="Avg Cost",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=1, column=4, sticky="w", padx=(0, 8), pady=(0, 8))
+
+        self.position_cost_var = tk.StringVar(value="0")
+        self.position_cost_entry = ttk.Entry(
+            editor_frame,
+            textvariable=self.position_cost_var,
+            width=14,
+        )
+        self.position_cost_entry.grid(
+            row=1,
+            column=5,
+            sticky="ew",
+            padx=(0, 18),
+            pady=(0, 8),
+        )
+
+        tk.Label(
+            editor_frame,
+            text="Notes",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=2, column=0, sticky="w", padx=(18, 8), pady=(0, 16))
+
+        self.position_notes_var = tk.StringVar()
+        self.position_notes_entry = ttk.Entry(
+            editor_frame,
+            textvariable=self.position_notes_var,
+            width=40,
+        )
+        self.position_notes_entry.grid(
+            row=2,
+            column=1,
+            columnspan=3,
+            sticky="ew",
+            padx=(0, 18),
+            pady=(0, 16),
+        )
+
+        self.save_position_button = ttk.Button(
+            editor_frame,
+            text="Save Position",
+            command=self.save_position,
+            style="Portfolio.Primary.TButton",
+        )
+        self.save_position_button.grid(
+            row=2,
+            column=4,
+            padx=(0, 8),
+            pady=(0, 16),
+        )
+
+        self.clear_position_button = ttk.Button(
+            editor_frame,
+            text="Clear",
+            command=self.clear_position_form,
+            style="Portfolio.TButton",
+        )
+        self.clear_position_button.grid(
+            row=2,
+            column=5,
+            padx=(0, 18),
+            pady=(0, 16),
+        )
+
+        self.position_status_label = tk.Label(
+            editor_frame,
+            text="Use the editor to save a quantity and average cost for an asset.",
+            background=self.colors["card"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 9),
+        )
+        self.position_status_label.grid(
+            row=3,
+            column=0,
+            columnspan=6,
+            sticky="w",
+            padx=(18, 18),
+            pady=(0, 16),
+        )
+
     def _build_table(self):
         table_frame = tk.Frame(
             self,
@@ -487,7 +678,7 @@ class PortfolioPage(tk.Frame):
             highlightthickness=1,
         )
         table_frame.grid(
-            row=2,
+            row=4,
             column=0,
             sticky="nsew",
             padx=28,
@@ -550,7 +741,7 @@ class PortfolioPage(tk.Frame):
 
         self.empty_state_label = tk.Label(
             table_frame,
-            text="No portfolio data available",
+            text="No portfolio data available for the current filter",
             background=self.colors["card"],
             foreground=self.colors["muted"],
             font=("Segoe UI", 11, "bold"),
@@ -586,7 +777,67 @@ class PortfolioPage(tk.Frame):
         self.sort_var.set("Symbol A-Z")
         self.load_summary()
 
+    def load_position_options(self):
+        rows = get_portfolio_asset_options()
+        self.asset_lookup = {
+            f"{symbol} - {name}": asset_id
+            for asset_id, symbol, name in rows
+        }
+
+        asset_labels = list(self.asset_lookup.keys())
+        self.position_asset_dropdown.configure(values=asset_labels)
+
+        if asset_labels:
+            if self.position_asset_var.get() not in self.asset_lookup:
+                self.position_asset_var.set(asset_labels[0])
+        else:
+            self.position_asset_var.set("")
+
+    def clear_position_form(self):
+        self.position_quantity_var.set("0")
+        self.position_cost_var.set("0")
+        self.position_notes_var.set("")
+        self.position_status_label.config(
+            text="Position form cleared.",
+            foreground=self.colors["muted"],
+        )
+
+    def save_position(self):
+        selected_asset = self.position_asset_var.get()
+        if not selected_asset or selected_asset not in self.asset_lookup:
+            self.position_status_label.config(
+                text="Choose an asset before saving a position.",
+                foreground=self.colors["danger"],
+            )
+            return
+
+        try:
+            quantity = float(self.position_quantity_var.get())
+            average_cost = float(self.position_cost_var.get())
+        except ValueError:
+            self.position_status_label.config(
+                text="Quantity and average cost must be numeric values.",
+                foreground=self.colors["danger"],
+            )
+            return
+
+        asset_id = self.asset_lookup[selected_asset]
+        save_portfolio_position(
+            asset_id=asset_id,
+            quantity=quantity,
+            average_cost=average_cost,
+            notes=self.position_notes_var.get().strip() or None,
+        )
+
+        self.position_status_label.config(
+            text=f"Saved position for {selected_asset}.",
+            foreground=self.colors["success"],
+        )
+        self.load_summary()
+
     def load_summary(self):
+        self.load_position_options()
+
         asset_count, snapshot_count, position_count = get_portfolio_summary()
         self.asset_count_value.config(text=str(asset_count))
         self.snapshot_count_value.config(text=str(snapshot_count))

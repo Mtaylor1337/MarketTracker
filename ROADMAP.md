@@ -4,8 +4,8 @@
 
 Development roadmap and long-term vision for the MarketTracker application.
 
-**Last Updated:** July 14, 2026  
-**Current Version:** v0.7  
+**Last Updated:** July 22, 2026  
+**Current Version:** v0.8  
 **Current Sprint:** Sprint 4 – Prediction Ready Data Collection
 
 ---
@@ -114,6 +114,14 @@ Current Sprint
 
 Current focus is improving the quality and organization
 of collected market data before AI development begins.
+
+Recent UI milestone completed:
+
+- Added a dedicated Market Snapshots navigation page
+- Added dedicated snapshot browsing with filtering and sorting
+- Preserved Dashboard and Reports behavior while improving UI consistency
+- Added responsive filter layouts for both Snapshot and Reports views
+- Added active sort indicators and click-to-sort table headers
 
 Goals:
 

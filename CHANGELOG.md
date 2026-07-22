@@ -53,6 +53,24 @@ organization as the application continues to grow.
 
 ## Upcoming (Version 0.8)
 
+### Added
+
+- Dedicated Market Snapshots page navigation in the main UI
+- Market snapshot browsing experience with search, filtering, and sorting
+- Clickable table headers with active sort indicators
+- Responsive filter layout improvements for snapshot and reporting views
+- UI polish to keep the new page aligned with the existing Dashboard and Reports style
+
+### Changed
+
+- Preserved the existing Dashboard and Reports workflow while expanding the navigation to include a dedicated snapshots view
+- Improved the page layout consistency across the main desktop application screens
+
+### Fixed
+
+- Missing page wiring for the existing Market Snapshots sidebar item
+- Inconsistent filter presentation on narrower window widths
+
 ### Planned
 
 - Historical price charts

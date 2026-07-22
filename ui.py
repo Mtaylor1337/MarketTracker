@@ -9,6 +9,7 @@ from market_service import (
     get_latest_market_snapshots,
 )
 from reports import ReportsPage
+from portfolio import PortfolioPage
 
 REFRESH_COOLDOWN_SECONDS = 30
 
@@ -1138,6 +1139,7 @@ def set_active_navigation(active_button):
         dashboard_nav_button,
         snapshots_nav_button,
         reports_nav_button,
+        portfolio_nav_button,
     )
 
     for button in navigation_buttons:
@@ -1161,6 +1163,7 @@ def set_active_navigation(active_button):
 def show_dashboard_page():
     reports_page.grid_remove()
     snapshots_page.grid_remove()
+    portfolio_page.grid_remove()
     main_frame.grid()
     set_active_navigation(dashboard_nav_button)
 
@@ -1168,6 +1171,7 @@ def show_dashboard_page():
 def show_reports_page():
     main_frame.grid_remove()
     snapshots_page.grid_remove()
+    portfolio_page.grid_remove()
     reports_page.load_assets()
     reports_page.grid()
     set_active_navigation(reports_nav_button)
@@ -1176,9 +1180,19 @@ def show_reports_page():
 def show_snapshots_page():
     main_frame.grid_remove()
     reports_page.grid_remove()
+    portfolio_page.grid_remove()
     snapshots_page.load_snapshots()
     snapshots_page.grid()
     set_active_navigation(snapshots_nav_button)
+
+
+def show_portfolio_page():
+    main_frame.grid_remove()
+    reports_page.grid_remove()
+    snapshots_page.grid_remove()
+    portfolio_page.load_summary()
+    portfolio_page.grid()
+    set_active_navigation(portfolio_nav_button)
 
 root = tk.Tk()
 root.title(f"MarketTracker {APP_VERSION}")
@@ -1405,17 +1419,18 @@ reports_nav_button.grid(
 
 portfolio_nav_button = tk.Button(
     sidebar,
-    text="  Portfolio  (Planned)",
+    text="  Portfolio",
+    command=show_portfolio_page,
     anchor="w",
-    background=COLOR_SIDEBAR,
-    foreground="#758493",
+    background=COLOR_SIDEBAR_BUTTON,
+    foreground=COLOR_SIDEBAR_INACTIVE_TEXT,
+    activebackground=COLOR_SIDEBAR_BUTTON,
+    activeforeground="white",
     relief="flat",
     borderwidth=0,
     font=("Segoe UI", 10),
     padx=18,
     pady=12,
-    state="disabled",
-    disabledforeground="#758493",
 )
 
 portfolio_nav_button.grid(
@@ -1526,6 +1541,27 @@ snapshots_page.grid(
     sticky="nsew",
 )
 snapshots_page.grid_remove()
+
+portfolio_page = PortfolioPage(
+    root,
+    colors={
+        "window": COLOR_WINDOW,
+        "card": COLOR_CARD,
+        "border": COLOR_BORDER,
+        "text": COLOR_TEXT,
+        "muted": COLOR_MUTED,
+        "primary": COLOR_SIDEBAR_ACTIVE,
+        "success": COLOR_SUCCESS,
+        "danger": COLOR_DANGER,
+        "table_header": COLOR_TABLE_HEADER,
+    },
+)
+portfolio_page.grid(
+    row=0,
+    column=1,
+    sticky="nsew",
+)
+portfolio_page.grid_remove()
 
 # --------------------------------------------------
 # Dashboard header

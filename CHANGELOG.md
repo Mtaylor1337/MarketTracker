@@ -60,6 +60,8 @@ organization as the application continues to grow.
 - Clickable table headers with active sort indicators
 - Responsive filter layout improvements for snapshot and reporting views
 - UI polish to keep the new page aligned with the existing Dashboard and Reports style
+- Portfolio navigation page with a lightweight holdings summary and asset table
+- Lightweight `portfolio_positions` database support for holding quantity and average cost context
 
 ### Changed
 

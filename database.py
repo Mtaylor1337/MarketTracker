@@ -87,6 +87,19 @@ def create_tables():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_positions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL UNIQUE,
+            quantity REAL NOT NULL DEFAULT 0,
+            average_cost REAL,
+            notes TEXT,
+            created_at_utc TEXT,
+            updated_at_utc TEXT,
+            FOREIGN KEY(asset_id) REFERENCES assets(id)
+        )
+    """)
+
     # ----------------------------------------------
     # Existing price-only snapshots table
     # This table remains untouched for compatibility.
@@ -298,6 +311,73 @@ def get_asset_id(symbol):
         return row[0]
 
     return None
+
+
+def save_portfolio_position(
+    asset_id,
+    quantity,
+    average_cost=None,
+    notes=None,
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    current_time = get_utc_timestamp()
+
+    cursor.execute(
+        """
+        SELECT id
+        FROM portfolio_positions
+        WHERE asset_id = ?
+        """,
+        (asset_id,),
+    )
+
+    existing_position = cursor.fetchone()
+
+    if existing_position is None:
+        cursor.execute(
+            """
+            INSERT INTO portfolio_positions (
+                asset_id,
+                quantity,
+                average_cost,
+                notes,
+                created_at_utc,
+                updated_at_utc
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                asset_id,
+                quantity,
+                average_cost,
+                notes,
+                current_time,
+                current_time,
+            ),
+        )
+    else:
+        cursor.execute(
+            """
+            UPDATE portfolio_positions
+            SET quantity = ?,
+                average_cost = ?,
+                notes = ?,
+                updated_at_utc = ?
+            WHERE asset_id = ?
+            """,
+            (
+                quantity,
+                average_cost,
+                notes,
+                current_time,
+                asset_id,
+            ),
+        )
+
+    conn.commit()
+    conn.close()
 
 
 # --------------------------------------------------
